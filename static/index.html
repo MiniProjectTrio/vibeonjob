@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VibeOnJob | AI Resume Analyzer</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <!-- Chart.js for the gauge/score -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="background-blobs">
+        <div class="blob blob-1"></div>
+        <div class="blob blob-2"></div>
+    </div>
+
+    <main class="container">
+        <header>
+            <h1>VibeOnJob</h1>
+            <p>Hybrid NLP + LLM Resume Gap Analyzer</p>
+        </header>
+
+        <section class="glass-panel upload-section" id="uploadPanel">
+            <form id="analysisForm">
+                <div class="form-group document-upload">
+                    <label for="resume">Upload Resume (PDF/Docx)</label>
+                    <div class="file-drop-area" id="fileDropArea">
+                        <span class="file-msg">Drag & Drop or Click to Select</span>
+                        <input type="file" id="resume" name="resume" accept=".pdf,.docx,.txt" required>
+                    </div>
+                </div>
+
+                <div class="form-group text-input">
+                    <label for="jobDescription">Job Description</label>
+                    <textarea id="jobDescription" name="job_description" rows="8" placeholder="Paste the exact job description here..." required></textarea>
+                </div>
+
+                <button type="submit" class="primary-btn" id="submitBtn">
+                    <span class="btn-text">Analyze Match</span>
+                    <span class="loader hidden"></span>
+                </button>
+            </form>
+        </section>
+
+        <section class="results-section hidden" id="resultsPanel">
+            <!-- Phase 1: Deterministic Match Score -->
+            <div class="glass-panel score-card">
+                <h2>Deterministic NLP Score</h2>
+                <div class="gauge-container">
+                    <canvas id="scoreGauge"></canvas>
+                    <div class="score-display">
+                        <span id="scoreValue">0</span>%
+                    </div>
+                </div>
+                <p class="score-desc">Calculated via TF-IDF & Cosine Similarity</p>
+            </div>
+
+            <!-- Phase 2: LLM Insights -->
+            <div class="glass-panel insights-card">
+                <h2>AI Contextual Insights</h2>
+                
+                <div class="insight-group">
+                    <h3>Identified Gaps</h3>
+                    <ul id="gapsList" class="insight-list"></ul>
+                </div>
+
+                <div class="insight-group">
+                    <h3>Resume Improvements</h3>
+                    <ul id="improvementsList" class="insight-list"></ul>
+                </div>
+
+                <div class="insight-group">
+                    <h3>Recommended Learning Path</h3>
+                    <div id="learningPathCards" class="cards-container"></div>
+                </div>
+            </div>
+            
+            <button class="secondary-btn" id="resetBtn">Analyze Another Resume</button>
+        </section>
+    </main>
+
+    <script src="script.js"></script>
+</body>
+</html>
