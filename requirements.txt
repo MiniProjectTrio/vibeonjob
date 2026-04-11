@@ -8,3 +8,5 @@ spacy
 pydantic
 python-dotenv
 google-generativeai
+pytesseract
+Pillow

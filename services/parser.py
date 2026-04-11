@@ -14,6 +14,23 @@ def parse_pdf(file_bytes: bytes) -> str:
             logger.debug(f"PDF opened successfully. Number of pages: {len(doc)}")
             for i, page in enumerate(doc):
                 page_text = page.get_text()
+
+                  # 2. Exhaustive Full-Page OCR Verification
+                logger.info(f"Generating full-page 300 DPI visual render for OCR sweep on page {i+1}.")
+                try:
+                    # Generate a high-resolution visual snapshot of the whole page
+                    pix = page.get_pixmap(dpi=300)
+                    img_bytes = pix.tobytes("png")
+                    pil_img = Image.open(io.BytesIO(img_bytes))
+                    
+                    # Extract text via Tesseract OCR
+                    ocr_text = pytesseract.image_to_string(pil_img)
+                    if ocr_text.strip():
+                        logger.debug(f"Full-page OCR sweep extracted {len(ocr_text.strip())} chars on page {i+1}")
+                        page_text += "\n" + ocr_text
+                except Exception as ocr_err:
+                    logger.warning(f"Full-page OCR sweep failed on page {i+1} (Tesseract may be missing): {ocr_err}")
+                    
                 text += page_text + "\n"
                 logger.debug(f"Extracted {len(page_text)} chars from page {i+1}")
         return text
