@@ -2,6 +2,8 @@ import logging
 import fitz  # PyMuPDF
 from docx import Document
 import io
+import pytesseract
+from PIL import Image
 
 logger = logging.getLogger("vibeonjob.services.parser")
 
