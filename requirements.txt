@@ -9,3 +9,5 @@ sentence-transformers
 pydantic
 python-dotenv
 google-genai
+pytesseract
+Pillow
