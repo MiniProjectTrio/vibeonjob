@@ -19,8 +19,6 @@ import json
 import time
 import logging
 from google import genai
-from google.genai import types
-from models.schemas import AnalysisResponse, KeywordSuggestion
 
 logger = logging.getLogger("vibeonjob.services.llm_analyzer")
 

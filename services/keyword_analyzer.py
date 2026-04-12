@@ -10,7 +10,6 @@ Pipeline position: Layer 2.5 — between entity extraction and vector embedding.
 
 import re
 import logging
-from collections import Counter
 from models.schemas import KeywordSuggestion
 
 logger = logging.getLogger("vibeonjob.services.keyword_analyzer")
