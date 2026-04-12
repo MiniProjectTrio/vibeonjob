@@ -6,8 +6,13 @@ python-docx
 spacy
 scipy
 sentence-transformers
-pydantic
+pydantic[email]
 python-dotenv
 google-genai
 pytesseract
 Pillow
+sqlmodel
+psycopg2-binary
+PyJWT
+passlib[bcrypt]
+requests
