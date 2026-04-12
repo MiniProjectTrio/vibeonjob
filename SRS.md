@@ -1,14 +1,14 @@
 # Software Requirements Specification (SRS)
-**Project Name:** VibeOnJob AI Resume Analyzer  
-**Version:** 1.0  
+**Project Name:** VibeOnJob — Hybrid AI Resume Analyzer  
+**Version:** 2.0  
 
 ## 1. Introduction
 
 ### 1.1 Purpose
-This document provides a comprehensive software requirement specification for the "VibeOnJob" application. It describes the scope, use cases, structural architecture, and non-functional requirements vital for the hybrid NLP+LLM platform.
+This document provides a comprehensive software requirement specification for the "VibeOnJob" application. It describes the 5-layer hybrid processing pipeline, system features, external interfaces, and non-functional requirements.
 
 ### 1.2 Scope
-VibeOnJob is an intelligent assessment platform designed for technical recruiters and job seekers. The platform accepts a user's resume (PDF/DOCX) alongside a target Job Description. It performs mathematical NLP comparisons and utilizes an LLM to generate qualitative resume improvements, identified gaps, and a targeted learning path.
+VibeOnJob is an entity-level semantic matching engine that evaluates a candidate's resume against a target job description. It uses Named Entity Recognition, dense vector embeddings, and optimal bipartite matching (Hungarian algorithm) to produce a mathematically provable match score, then employs a constrained LLM for human-readable presentation.
 
 ---
 
@@ -17,53 +17,87 @@ VibeOnJob is an intelligent assessment platform designed for technical recruiter
 ### 2.1 Product Perspective
 VibeOnJob operates as a self-contained monolith featuring an asynchronous backend (FastAPI) and a lightweight, vanilla client-side frontend utilizing a Glassmorphism design pattern. It interfaces externally with Google's Generative AI service (Gemini).
 
-### 2.2 User Classes and Characteristics
-- **Job Seekers:** Users seeking actionable advice on modifying their resumes and discovering technical skills needed for specific roles.
-- **Recruiters / Evaluators:** Users auditing resumes en-masse to identify technical match percentages independently of LLM hallucinatory guesses.
+---
+
+### 2.2 User Classes
+- **Job Seekers:** Upload resumes and receive quantified skill gap analysis with learning paths.
+- **Recruiters / Evaluators:** Audit resumes with mathematically verifiable match scores independent of LLM hallucination.
 
 ---
 
-## 3. System Features
+## 3. System Features — 5-Layer Pipeline
 
-### 3.1 Feature 1: Document Parsing Engine
-- **Description:** System reliably extracts raw text strings from uploaded binaries.
+### 3.1 Layer 1: Document Parsing Engine
+- **Description:** Extracts raw text from uploaded binary documents.
 - **Inputs:** `.pdf` and `.docx` files.
-- **Logic:** PyMuPDF parses streams entirely in-memory. Fallback to `python-docx` for MS Word equivalents.
+- **Processing:** PyMuPDF for PDF streams, python-docx for Word documents. All processing occurs in-memory via `BytesIO` — files are never written to disk.
 
-### 3.2 Feature 2: Deterministic Match Scoring (NLP)
-- **Description:** System evaluates text overlap mathematically to provide a verifiable anchor score.
-- **Logic:** Utilizes `scikit-learn`'s `TfidfVectorizer` to compute term frequency across the Job Description and Resume. Employs `cosine_similarity` to yield a strict 0-100% boundary match. 
+### 3.2 Layer 2: Named Entity Recognition (NER)
+- **Description:** Extracts only skills, tools, and concepts from both documents.
+- **Processing:** Dual-strategy extraction:
+  1. **Domain Vocabulary Matching:** A curated set of 100+ tech terms matched via regex word boundaries.
+  2. **spaCy NER + Noun Chunks:** Named entities (ORG, PRODUCT) and short noun chunks captured for broader coverage.
+- **Output:** Two deduplicated entity lists: `jd_entities[]` and `resume_entities[]`.
+- **Rationale:** Dimensionality reduction — eliminates narrative filler and focuses on quantifiable data points.
 
-### 3.3 Feature 3: Contextual Reasoning LLM Integration
-- **Description:** Generates qualitative improvement data via a Large Language Model.
-- **Inputs:** The extracted text array and the calculated TF-IDF Match Score vector.
-- **Logic:** System restricts output strictly to a predefined JSON schema holding relational nodes for `gaps`, `improvements`, and `learning_path`.
+### 3.3 Layer 3: Dense Vector Embeddings
+- **Description:** Converts entity strings into 384-dimensional dense vectors using a local transformer model.
+- **Model:** `all-MiniLM-L6-v2` via the `sentence-transformers` library.
+- **Processing:** Runs locally on CPU. Understands semantic relationships (e.g., "React" ≈ "Frontend Framework").
+- **Output:** Two NumPy matrices of shape `(n, 384)` and `(m, 384)`.
 
-### 3.4 Feature 4: Comprehensive Observability
-- **Description:** The system tracks user actions and pipeline latency for debugging and evaluation audibility.
-- **Logic:** Request middleware tracks response times. Root `logging` mechanism traces file type detection, NER keyword extraction hit-counts, and API payload transactions across multi-level severity bands (INFO, DEBUG, ERROR).
+### 3.4 Layer 4: Cosine Similarity Matrix + Hungarian Algorithm
+- **Description:** Computes optimal 1:1 alignment between JD requirements and candidate skills.
+- **Processing:**
+  1. Full cosine similarity matrix `(n × m)` computed via `sklearn.metrics.pairwise.cosine_similarity`.
+  2. Cost matrix `(1 - similarity)` passed to `scipy.optimize.linear_sum_assignment` (Hungarian algorithm).
+  3. Matches above configurable threshold (default 0.45) are retained.
+- **Output:** `match_score` (float, 0-100), `matched_skills[]`, `missing_skills[]`.
+- **Rationale:** Optimal bipartite matching provides the mathematically best alignment, not greedy or heuristic.
+
+### 3.5 Layer 5: LLM Presentation Layer
+- **Description:** Translates pre-computed structured arrays into human-readable career analysis.
+- **Input:** Only structured data: `jd_requirements`, `candidate_skills`, `matched_skills`, `missing_skills`, `match_score`. Raw resume/JD text is **never** passed to the LLM.
+- **Processing:** Google Gemini 2.5 Flash generates structured JSON containing gap analysis, resume improvements, and learning paths.
+- **Output Validation:** Match score and skill arrays are overridden from computed values post-LLM to prevent hallucination.
 
 ---
 
 ## 4. External Interface Requirements
 
-### 4.1 UI Component Architecture
-- **Web Interface:** Single Page Application (SPA) natively mounted to the FastAPI router. Features an animated `Chart.js` Doughnut Gauge metric overlay, dragging-and-dropping APIs, CSS3 gradients, and blurred panel depth manipulation.
+### 4.1 User Interface
+- Single Page Application served directly by FastAPI's `StaticFiles`.
+- Features: animated Chart.js doughnut gauge, skill alignment table with similarity bars, missing skill chips, drag-and-drop file upload, glassmorphic design.
 
-### 4.2 Application Programming Interfaces
-- **Google Generative AI:** Requires bidirectional API access to `gemini-2.5-flash` model via HTTP. Secured logic validated implicitly via `.env` or system var `GOOGLE_API_KEY`.
+### 4.2 API Endpoints
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/api/analyze` | Accepts `resume` (file) and `job_description` (form text). Returns `AnalysisResponse` JSON. |
+
+### 4.3 External Services
+- **Google Generative AI:** Outbound HTTPS to `generativelanguage.googleapis.com`. Authenticated via `GOOGLE_API_KEY` environment variable.
+- **HuggingFace Model Hub:** One-time HTTPS download of `all-MiniLM-L6-v2` (~80MB). Cached locally after first run.
 
 ---
 
 ## 5. Non-Functional Requirements
 
-### 5.1 Performance Criteria
-- Text stream parsing and TF-IDF calculation cycle must terminate in under 500ms.
-- End-to-end processing (including external LLM latency constraint) should resolve within roughly 3 to 6 seconds under standard gigabit network conditions.
+### 5.1 Performance
+- Layers 1-4 (parsing through Hungarian matching) must complete in under 1 second on standard hardware.
+- Layer 5 (LLM) adds 2-5 seconds depending on network latency.
+- Embedding model loads once at startup; subsequent requests reuse the in-memory model.
 
-### 5.2 Security & Compliance
-- The application isolates process contexts. Uploads are maintained implicitly in runtime `BytesIO` streams. Resumes must **never** be written or flushed to the local hard-disk, resolving significant PII and data-retention vulnerabilities.
-- FastAPI automatically routes to a highly-restrictive generalized CORS middleware interface.
+### 5.2 Security & Data Privacy
+- Uploaded files are processed entirely in-memory (`BytesIO`). No PII is persisted to disk.
+- Raw document text is never sent to external APIs. Only extracted entity arrays are sent to the LLM.
+- CORS middleware is configured for cross-origin access control.
 
 ### 5.3 Reliability & Fault Tolerance
-- If the required downstream NLP package (`en_core_web_sm`) is unresolvable upon thread spawn, the `nlp_scorer.py` module traps the fatal `OSError` and triggers an automated hot-download routine over HTTP to ensure 100% uptime initialization.
+- spaCy model auto-downloads if missing at startup.
+- Embedding model auto-downloads from HuggingFace on first run.
+- LLM output is post-processed: mathematical values are always overridden from local computation, preventing hallucinated scores.
+
+### 5.4 Observability
+- Python `logging` module with multi-level severity (DEBUG, INFO, WARNING, ERROR).
+- HTTP middleware logs request method, path, and response time for every request.
+- Each pipeline layer logs entry, exit, and key metrics (entity counts, vector shapes, similarity values).

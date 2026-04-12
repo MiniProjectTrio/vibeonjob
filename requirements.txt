@@ -3,8 +3,9 @@ uvicorn
 python-multipart
 PyMuPDF
 python-docx
-scikit-learn
 spacy
+scipy
+sentence-transformers
 pydantic
 python-dotenv
-google-generativeai
+google-genai
