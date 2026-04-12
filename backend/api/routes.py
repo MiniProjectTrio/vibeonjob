@@ -10,14 +10,26 @@ Implements the 6-layer analysis pipeline:
   Layer 5: LLM Presentation (Gemini → structured JSON)
 
 Each layer's timing is individually logged for performance profiling.
+Authenticated endpoints persist results to MySQL for per-user history.
 """
 
+import os
+import json
 import time
 import uuid
 import logging
+import shutil
 
-from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Request
+from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Depends
+from sqlmodel import Session, select
+
 from models.schemas import AnalysisResponse
+from models.database import get_session
+from models.user import User
+from models.resume import Resume
+from models.analysis import Analysis
+from api.deps import get_current_user
+
 from services.parser import parse_pdf, parse_docx
 from services.entity_extractor import extract_entities
 from services.keyword_analyzer import analyze_keywords
@@ -27,11 +39,18 @@ from services.llm_analyzer import format_gap_analysis
 logger = logging.getLogger("vibeonjob.api.routes")
 router = APIRouter()
 
+UPLOAD_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "uploads")
+os.makedirs(UPLOAD_DIR, exist_ok=True)
+
+
+# ── Resume Analysis Endpoint ────────────────────────────────────────────────
 
 @router.post("/analyze", response_model=AnalysisResponse)
 async def analyze_resume(
     resume: UploadFile = File(...),
     job_description: str = Form(...),
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
 ):
     request_id = str(uuid.uuid4())[:8]
     pipeline_start = time.time()
@@ -40,7 +59,7 @@ async def analyze_resume(
         f"[{request_id}] ═══════════════════════════════════════════════════════"
     )
     logger.info(
-        f"[{request_id}] Starting 6-Layer Analysis Pipeline"
+        f"[{request_id}] Starting 6-Layer Analysis Pipeline (user={current_user.id})"
     )
     logger.info(
         f"[{request_id}] File: '{resume.filename}' | "
@@ -60,6 +79,25 @@ async def analyze_resume(
             f"[{request_id}] Read {len(content):,} bytes from upload: '{resume.filename}'"
         )
 
+        # Save the resume file to disk
+        file_ext = os.path.splitext(resume.filename)[1]
+        stored_filename = f"{uuid.uuid4().hex}{file_ext}"
+        file_path = os.path.join(UPLOAD_DIR, stored_filename)
+        with open(file_path, "wb") as f:
+            f.write(content)
+
+        # Create Resume record
+        resume_record = Resume(
+            user_id=current_user.id,
+            filename=resume.filename,
+            file_path=f"uploads/{stored_filename}",
+            file_size=len(content),
+            content_type=resume.content_type or "application/octet-stream",
+        )
+        session.add(resume_record)
+        session.commit()
+        session.refresh(resume_record)
+
         filename_lower = resume.filename.lower()
         if filename_lower.endswith(".pdf"):
             logger.info(f"[{request_id}] Format detected: PDF → using PyMuPDF")
@@ -73,7 +111,7 @@ async def analyze_resume(
             )
             raise HTTPException(
                 status_code=400,
-                detail=f"Unsupported file type. Please upload a PDF or DOCX file."
+                detail="Unsupported file type. Please upload a PDF or DOCX file.",
             )
 
         if not resume_text or not resume_text.strip():
@@ -82,7 +120,7 @@ async def analyze_resume(
             )
             raise HTTPException(
                 status_code=400,
-                detail="Could not extract any text from the resume. Is the PDF text-selectable?"
+                detail="Could not extract any text from the resume. Is the PDF text-selectable?",
             )
 
         resume_word_count = len(resume_text.split())
@@ -114,16 +152,13 @@ async def analyze_resume(
             )
             raise HTTPException(
                 status_code=400,
-                detail="Could not extract any skills or requirements from the job description."
+                detail="Could not extract any skills or requirements from the job description.",
             )
 
         # ── Layer 2.5: ATS Keyword Density Analysis ───────────────────────────
         t0 = time.time()
         logger.info(f"[{request_id}] ── Layer 2.5: ATS Keyword Density Analysis ──")
 
-        # We need matched/missing for keyword_analyzer, but we don't have them yet.
-        # Run a preliminary set-difference to seed the missing list for frequency analysis.
-        # The definitive missing list will come from Layer 4 (Hungarian algorithm).
         preliminary_missing = list(set(jd_entities) - set(resume_entities))
         logger.info(
             f"[{request_id}] Preliminary missing (set diff): {len(preliminary_missing)} skills "
@@ -173,7 +208,6 @@ async def analyze_resume(
         match_score = score_result["match_score"]
         matched_skills = score_result["matched_skills"]
         missing_skills = score_result["missing_skills"]
-        coverage_detail = score_result.get("coverage_detail", {})
 
         # Re-run keyword analysis with definitive missing skills from Hungarian
         logger.info(
@@ -216,28 +250,33 @@ async def analyze_resume(
         layer5_time = time.time() - t0
         total_time = time.time() - pipeline_start
 
-        logger.info(
-            f"[{request_id}] Layer 5 complete ({layer5_time:.3f}s)"
-        )
-        logger.info(
-            f"[{request_id}] ═══════════════════════════════════════════════════════"
-        )
+        logger.info(f"[{request_id}] Layer 5 complete ({layer5_time:.3f}s)")
         logger.info(
             f"[{request_id}] Pipeline COMPLETE in {total_time:.2f}s total | "
             f"L1={layer1_time:.2f}s L2={layer2_time:.2f}s "
             f"L2.5={layer25_time:.2f}s L3={layer3_time:.2f}s "
             f"L4={layer4_time:.2f}s L5={layer5_time:.2f}s"
         )
-        logger.info(
-            f"[{request_id}] Results: semantic={match_score}%, ats={ats_score}%, "
-            f"matched={len(matched_skills)}, missing={len(missing_skills)}, "
-            f"gaps={len(analysis_result.gaps)}, "
-            f"improvements={len(analysis_result.improvements)}, "
-            f"learning_path={len(analysis_result.learning_path)}"
+
+        # ── Persist analysis to database ─────────────────────────────────────
+        analysis_record = Analysis(
+            user_id=current_user.id,
+            resume_id=resume_record.id,
+            job_description=job_description,
+            match_score=match_score,
+            ats_score=ats_score,
+            matched_skills_json=json.dumps(matched_skills),
+            missing_skills_json=json.dumps(missing_skills),
+            gaps_json=json.dumps([g.model_dump() for g in analysis_result.gaps]),
+            improvements_json=json.dumps([i.model_dump() for i in analysis_result.improvements]),
+            learning_path_json=json.dumps([l.model_dump() for l in analysis_result.learning_path]),
+            keyword_suggestions_json=json.dumps(
+                [ks.model_dump() for ks in analysis_result.keyword_suggestions]
+            ),
         )
-        logger.info(
-            f"[{request_id}] ═══════════════════════════════════════════════════════"
-        )
+        session.add(analysis_record)
+        session.commit()
+        logger.info(f"[{request_id}] Analysis persisted as ID={analysis_record.id}")
 
         return analysis_result
 
@@ -249,6 +288,95 @@ async def analyze_resume(
     except Exception as e:
         total_time = time.time() - pipeline_start
         logger.exception(
-            f"[{request_id}] UNEXPECTED ERROR after {total_time:.2f}s: {type(e).__name__}: {e}"
+            f"[{request_id}] UNEXPECTED ERROR after {total_time:.2f}s: "
+            f"{type(e).__name__}: {e}"
         )
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ── Dashboard Data Endpoint ─────────────────────────────────────────────────
+
+@router.get("/dashboard-data")
+def get_dashboard_data(
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+):
+    """Return user info and a summary of their past analyses."""
+    name = current_user.first_name or current_user.username or "User"
+
+    # Fetch recent analyses count
+    statement = select(Analysis).where(Analysis.user_id == current_user.id)
+    analyses = session.exec(statement).all()
+
+    return {
+        "message": f"Welcome back, {name}!",
+        "user": {
+            "id": current_user.id,
+            "email": current_user.email,
+        },
+        "total_analyses": len(analyses),
+        "insights": [
+            f"You have run {len(analyses)} resume analysis{'es' if len(analyses) != 1 else ''} so far.",
+            "Upload a resume and job description to get a detailed gap analysis.",
+            "Your analysis history is saved and accessible anytime.",
+        ],
+    }
+
+
+# ── Analysis History Endpoints ───────────────────────────────────────────────
+
+@router.get("/analyses")
+def list_analyses(
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+):
+    """Return all past analyses for the authenticated user."""
+    statement = (
+        select(Analysis)
+        .where(Analysis.user_id == current_user.id)
+        .order_by(Analysis.created_at.desc())
+    )
+    analyses = session.exec(statement).all()
+
+    return [
+        {
+            "id": a.id,
+            "resume_id": a.resume_id,
+            "match_score": a.match_score,
+            "ats_score": a.ats_score,
+            "created_at": a.created_at.isoformat(),
+        }
+        for a in analyses
+    ]
+
+
+@router.get("/analyses/{analysis_id}")
+def get_analysis(
+    analysis_id: int,
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+):
+    """Return a specific past analysis for the authenticated user."""
+    statement = (
+        select(Analysis)
+        .where(Analysis.id == analysis_id, Analysis.user_id == current_user.id)
+    )
+    analysis = session.exec(statement).first()
+
+    if not analysis:
+        raise HTTPException(status_code=404, detail="Analysis not found")
+
+    return {
+        "id": analysis.id,
+        "resume_id": analysis.resume_id,
+        "job_description": analysis.job_description[:200] + "...",
+        "match_score": analysis.match_score,
+        "ats_score": analysis.ats_score,
+        "matched_skills": analysis.matched_skills,
+        "missing_skills": analysis.missing_skills,
+        "gaps": analysis.gaps,
+        "improvements": analysis.improvements,
+        "learning_path": analysis.learning_path,
+        "keyword_suggestions": analysis.keyword_suggestions,
+        "created_at": analysis.created_at.isoformat(),
+    }
