@@ -1,0 +1,17 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+.material-symbols-outlined {
+    font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+    vertical-align: middle;
+}
+.ambient-shadow {
+    box-shadow: 0 20px 40px -12px rgba(0, 80, 212, 0.08);
+}
+.primary-gradient {
+    background: linear-gradient(135deg, #0050d4 0%, #7b9cff 100%);
+}
+.secondary-gradient {
+    background: linear-gradient(135deg, #702ae1 0%, #dcc9ff 100%);
+}
