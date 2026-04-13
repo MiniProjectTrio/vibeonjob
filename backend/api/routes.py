@@ -273,6 +273,9 @@ async def analyze_resume(
             keyword_suggestions_json=json.dumps(
                 [ks.model_dump() for ks in analysis_result.keyword_suggestions]
             ),
+            recommended_resources_json=json.dumps(
+                [r.model_dump() for r in analysis_result.recommended_resources]
+            ),
         )
         session.add(analysis_record)
         session.commit()
@@ -378,5 +381,6 @@ def get_analysis(
         "improvements": analysis.improvements,
         "learning_path": analysis.learning_path,
         "keyword_suggestions": analysis.keyword_suggestions,
+        "recommended_resources": analysis.recommended_resources,
         "created_at": analysis.created_at.isoformat(),
     }

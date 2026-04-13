@@ -6,10 +6,11 @@ Simple email+password auth. Returns a JWT on success.
 
 import os
 import jwt
+import bcrypt
+import hashlib
 from datetime import datetime, timedelta
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel, EmailStr
-from passlib.hash import bcrypt
 from sqlmodel import Session, select
 
 from models.database import get_session
@@ -29,6 +30,19 @@ def _create_token(user_id: int, email: str) -> str:
         "exp": datetime.utcnow() + timedelta(hours=JWT_EXPIRY_HOURS),
     }
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
+
+
+def _get_password_hash(password: str) -> str:
+    # Pre-hash with SHA-256 to support passwords > 72 bytes
+    pw_hash = hashlib.sha256(password.encode("utf-8")).hexdigest()
+    salt = bcrypt.gensalt()
+    hashed = bcrypt.hashpw(pw_hash.encode("utf-8"), salt)
+    return hashed.decode("utf-8")
+
+
+def _verify_password(password: str, hashed_password: str) -> bool:
+    pw_hash = hashlib.sha256(password.encode("utf-8")).hexdigest()
+    return bcrypt.checkpw(pw_hash.encode("utf-8"), hashed_password.encode("utf-8"))
 
 
 # ── Request schemas ──────────────────────────────────────────────────────────
@@ -54,7 +68,7 @@ def register(body: RegisterRequest, session: Session = Depends(get_session)):
 
     user = User(
         email=body.email,
-        password_hash=bcrypt.hash(body.password),
+        password_hash=_get_password_hash(body.password),
         first_name=body.first_name,
     )
     session.add(user)
@@ -70,7 +84,7 @@ def register(body: RegisterRequest, session: Session = Depends(get_session)):
 @router.post("/login")
 def login(body: LoginRequest, session: Session = Depends(get_session)):
     user = session.exec(select(User).where(User.email == body.email)).first()
-    if not user or not bcrypt.verify(body.password, user.password_hash):
+    if not user or not _verify_password(body.password, user.password_hash):
         raise HTTPException(status_code=401, detail="Invalid email or password")
 
     return {

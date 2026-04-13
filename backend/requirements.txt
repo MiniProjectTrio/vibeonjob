@@ -14,5 +14,5 @@ Pillow
 sqlmodel
 psycopg2-binary
 PyJWT
-passlib[bcrypt]
+bcrypt
 requests

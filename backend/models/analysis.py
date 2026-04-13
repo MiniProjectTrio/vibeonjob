@@ -27,6 +27,7 @@ class Analysis(SQLModel, table=True):
     improvements_json: str = Field(default="[]", sa_column=Column(Text))
     learning_path_json: str = Field(default="[]", sa_column=Column(Text))
     keyword_suggestions_json: str = Field(default="[]", sa_column=Column(Text))
+    recommended_resources_json: str = Field(default="[]", sa_column=Column(Text))
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
     # ── Convenience properties to deserialise JSON fields ─────────────────
@@ -54,3 +55,7 @@ class Analysis(SQLModel, table=True):
     @property
     def keyword_suggestions(self) -> list:
         return json.loads(self.keyword_suggestions_json)
+
+    @property
+    def recommended_resources(self) -> list:
+        return json.loads(self.recommended_resources_json)
