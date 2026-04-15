@@ -384,3 +384,96 @@ def get_analysis(
         "recommended_resources": analysis.recommended_resources,
         "created_at": analysis.created_at.isoformat(),
     }
+
+
+# ── Generate ATS-Friendly Resume ────────────────────────────────────────────
+
+from pydantic import BaseModel
+from typing import List, Optional
+
+class GenerateResumeRequest(BaseModel):
+    job_description: str
+    missing_skills: List[str] = []
+    improvements: List[dict] = []
+    gaps: List[dict] = []
+    matched_skills: List[dict] = []
+    ats_score: float = 0.0
+
+@router.post("/generate-resume")
+async def generate_resume(
+    body: GenerateResumeRequest,
+    current_user: User = Depends(get_current_user),
+):
+    """Generate an ATS-optimized resume using Gemini based on analysis results."""
+    logger.info(f"Generating ATS resume for user={current_user.id}")
+
+    api_key = os.getenv("GOOGLE_API_KEY", "")
+    if not api_key:
+        raise HTTPException(status_code=500, detail="AI service not configured")
+
+    from google import genai
+    client = genai.Client(api_key=api_key)
+
+    # Build improvement instructions
+    improvement_text = ""
+    for imp in body.improvements:
+        section = imp.get("section", "")
+        suggestion = imp.get("suggestion", "")
+        before = imp.get("before_example", "")
+        after = imp.get("after_example", "")
+        improvement_text += f"\n- Section: {section}\n  Suggestion: {suggestion}\n  Before: {before}\n  After: {after}\n"
+
+    # Build gap information
+    gap_text = ""
+    for gap in body.gaps:
+        gap_text += f"\n- {gap.get('skill', '')}: {gap.get('relevancy', '')} (Priority: #{gap.get('priority_rank', 'N/A')}, Add {gap.get('recommended_additions', 2)}x)"
+
+    # Build matched skills info
+    matched_text = ", ".join([s.get("jd_skill", "") for s in body.matched_skills])
+
+    prompt = f"""You are an expert resume writer and ATS (Applicant Tracking System) specialist.
+Generate a complete, professional, ATS-optimized resume based on the analysis data below.
+
+JOB DESCRIPTION:
+{body.job_description[:3000]}
+
+CURRENT ATS SCORE: {body.ats_score}%
+
+MATCHED SKILLS (already present - keep and emphasize these):
+{matched_text}
+
+MISSING SKILLS (must be incorporated naturally):
+{', '.join(body.missing_skills)}
+
+SKILL GAPS TO ADDRESS:
+{gap_text}
+
+IMPROVEMENT SUGGESTIONS:
+{improvement_text}
+
+INSTRUCTIONS:
+1. Create a COMPLETE professional resume that would score 85%+ on ATS systems.
+2. Include all standard sections: Summary/Profile, Skills, Experience, Education, Projects (if applicable).
+3. Naturally incorporate ALL missing skills into relevant sections — don't just list them.
+4. Use strong action verbs and quantified achievements.
+5. Follow the improvement suggestions — use the "after" examples as guides.
+6. Keep the resume to 1-2 pages worth of content.
+7. Use a clean, professional format with clear section headings.
+8. Include the matched skills prominently in the Skills section.
+9. For Experience, create realistic-sounding bullet points that naturally weave in the missing keywords.
+10. DO NOT use markdown formatting — output plain text suitable for a text document.
+11. Use clear section headers with ALL CAPS or standard formatting.
+
+Output ONLY the resume text — no commentary, no explanations, no markdown."""
+
+    try:
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=prompt,
+        )
+        resume_text = response.text.strip()
+        logger.info(f"ATS resume generated: {len(resume_text)} chars")
+        return {"resume_text": resume_text}
+    except Exception as e:
+        logger.error(f"Resume generation failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Resume generation failed: {str(e)}")

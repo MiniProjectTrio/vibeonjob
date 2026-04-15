@@ -10,6 +10,7 @@ import bcrypt
 import hashlib
 from datetime import datetime, timedelta
 from fastapi import APIRouter, HTTPException, Depends
+from typing import Optional
 from pydantic import BaseModel, EmailStr
 from sqlmodel import Session, select
 
@@ -50,7 +51,7 @@ def _verify_password(password: str, hashed_password: str) -> bool:
 class RegisterRequest(BaseModel):
     email: EmailStr
     password: str
-    first_name: str | None = None
+    first_name: Optional[str] = None
 
 class LoginRequest(BaseModel):
     email: EmailStr
