@@ -7,7 +7,17 @@ export default function NavBar() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [showMenu, setShowMenu] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
   const menuRef = useRef(null);
+
+  // Handle scroll effect
+  useEffect(() => {
+    const handleScroll = () => {
+      setScrolled(window.scrollY > 20);
+    };
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -27,62 +37,64 @@ export default function NavBar() {
   };
 
   return (
-    <header className="w-full top-0 sticky z-50 bg-white/80 backdrop-blur-xl border-b border-slate-100">
-      <nav className="flex justify-between items-center px-8 py-4 max-w-7xl mx-auto">
-        {/* Dynamic Logo */}
-        <Link to={user ? '/dashboard' : '/'} className="flex items-center gap-2 group">
-          <div className="w-9 h-9 bg-gradient-to-br from-primary to-secondary rounded-xl flex items-center justify-center shadow-lg shadow-primary/20 group-hover:scale-105 transition-transform">
-            <span className="material-symbols-outlined text-white text-[18px]" style={{ fontVariationSettings: "'FILL' 1" }}>auto_awesome</span>
-          </div>
-          <span className="text-2xl font-bold text-on-surface font-headline tracking-tight">VibeOnJob</span>
-        </Link>
-
-        {/* Nav Links */}
-        <div className="hidden md:flex items-center gap-8">
-          <Link to="/about" className="text-on-surface-variant hover:text-primary font-headline font-medium text-[15px] transition-colors">About</Link>
-          <a className="text-on-surface-variant hover:text-primary font-headline font-medium text-[15px] transition-colors" href="#">Features</a>
-          <a className="text-on-surface-variant hover:text-primary font-headline font-medium text-[15px] transition-colors" href="#">Free Tools</a>
-        </div>
-
-        {/* Auth Buttons / Avatar */}
-        <div className="flex items-center gap-4">
-          {user ? (
-            <div className="relative" ref={menuRef}>
-              <button
-                onClick={() => setShowMenu(!showMenu)}
-                className="h-9 w-9 rounded-full bg-gradient-to-br from-primary to-secondary text-white flex items-center justify-center font-bold text-sm shadow-md hover:scale-105 transition-transform ring-2 ring-white"
-              >
-                {user.first_name ? user.first_name[0].toUpperCase() : 'U'}
-              </button>
-
-              {/* Dropdown */}
-              {showMenu && (
-                <div className="absolute right-0 mt-3 w-56 bg-white rounded-2xl shadow-xl border border-slate-100 py-2 animate-in fade-in slide-in-from-top-2">
-                  <div className="px-4 py-3 border-b border-slate-100">
-                    <p className="text-sm font-bold text-on-surface truncate">{user.first_name || 'User'}</p>
-                    <p className="text-xs text-on-surface-variant truncate">{user.email}</p>
-                  </div>
-                  <Link to="/dashboard" className="flex items-center gap-3 px-4 py-2.5 text-sm text-on-surface-variant hover:bg-slate-50 hover:text-primary transition-colors" onClick={() => setShowMenu(false)}>
-                    <span className="material-symbols-outlined text-[18px]">dashboard</span>
-                    Dashboard
-                  </Link>
-                  <button onClick={handleSignOut} className="flex items-center gap-3 px-4 py-2.5 text-sm text-red-500 hover:bg-red-50 transition-colors w-full text-left">
-                    <span className="material-symbols-outlined text-[18px]">logout</span>
-                    Sign Out
-                  </button>
-                </div>
-              )}
+    <header className={`w-full fixed top-0 z-50 transition-all duration-500 ${scrolled ? 'py-3' : 'py-6'}`}>
+      <nav className={`mx-auto max-w-7xl px-6 transition-all duration-500`}>
+        <div className={`flex justify-between items-center px-6 py-3 rounded-2xl transition-all duration-500 ${scrolled ? 'glass shadow-lg border-white/40' : 'bg-transparent'}`}>
+          {/* Dynamic Logo */}
+          <Link to={user ? '/dashboard' : '/'} className="flex items-center gap-3 group">
+            <div className="w-10 h-10 primary-gradient rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/20 group-hover:scale-110 transition-transform">
+              <span className="material-symbols-outlined text-white text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>auto_awesome</span>
             </div>
-          ) : (
-            <>
-              <Link to="/login">
-                <button className="text-on-surface hover:text-primary px-4 py-2 transition-all font-bold text-sm">Log In</button>
-              </Link>
-              <Link to="/signup">
-                <button className="primary-gradient text-white px-6 py-2.5 rounded-full font-bold text-sm shadow-lg shadow-primary/20 hover:shadow-primary/30 transition-all hover:-translate-y-0.5 active:scale-95">Get Started Free</button>
-              </Link>
-            </>
-          )}
+            <span className="text-2xl font-black text-slate-900 font-headline tracking-tighter">VibeOnJob</span>
+          </Link>
+
+          {/* Nav Links */}
+          <div className="hidden md:flex items-center gap-10">
+            <Link to="/about" className="text-slate-600 hover:text-blue-600 font-premium font-bold text-sm transition-colors">About</Link>
+            <Link to="/features" className="text-slate-600 hover:text-blue-600 font-premium font-bold text-sm transition-colors">Features</Link>
+            <Link to="/free-tools" className="text-slate-600 hover:text-blue-600 font-premium font-bold text-sm transition-colors">Free Tools</Link>
+          </div>
+
+          {/* Auth Buttons / Avatar */}
+          <div className="flex items-center gap-6">
+            {user ? (
+              <div className="relative" ref={menuRef}>
+                <button
+                  onClick={() => setShowMenu(!showMenu)}
+                  className="h-10 w-10 rounded-xl primary-gradient text-white flex items-center justify-center font-bold text-sm shadow-lg hover:scale-105 transition-transform"
+                >
+                  {user.first_name ? user.first_name[0].toUpperCase() : 'U'}
+                </button>
+
+                {/* Dropdown */}
+                {showMenu && (
+                  <div className="absolute right-0 mt-4 w-64 bg-white/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-slate-100 py-2 animate-in fade-in slide-in-from-top-3">
+                    <div className="px-5 py-4 border-b border-slate-50">
+                      <p className="text-sm font-black text-slate-900 truncate">{user.first_name || 'User'}</p>
+                      <p className="text-xs text-slate-500 truncate mt-0.5">{user.email}</p>
+                    </div>
+                    <Link to="/dashboard" className="flex items-center gap-3 px-5 py-3 text-sm text-slate-600 hover:bg-blue-50 hover:text-blue-600 transition-colors" onClick={() => setShowMenu(false)}>
+                      <span className="material-symbols-outlined text-[20px]">dashboard</span>
+                      Insights Dashboard
+                    </Link>
+                    <button onClick={handleSignOut} className="flex items-center gap-3 px-5 py-3 text-sm text-red-500 hover:bg-red-50 transition-colors w-full text-left">
+                      <span className="material-symbols-outlined text-[20px]">logout</span>
+                      Sign Out
+                    </button>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <>
+                <Link to="/login" className="text-slate-600 hover:text-blue-600 font-black text-sm transition-colors px-2">Log In</Link>
+                <Link to="/signup">
+                  <button className="primary-gradient text-white px-7 py-3 rounded-xl font-black text-sm shadow-xl shadow-blue-500/20 hover:shadow-blue-500/40 hover:-translate-y-0.5 active:scale-95 transition-all">
+                    Launch App
+                  </button>
+                </Link>
+              </>
+            )}
+          </div>
         </div>
       </nav>
     </header>
