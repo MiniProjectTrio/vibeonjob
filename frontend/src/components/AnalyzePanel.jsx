@@ -30,13 +30,13 @@ export default function AnalyzePanel({ onAnalysisComplete }) {
       setFile(droppedFile);
       setError(null);
     } else {
-      setError('Please upload a PDF or DOCX file.');
+      setError('Please upload a PDF, DOCX, or Image (JPG/PNG).');
     }
   };
 
   const isValidFile = (f) => {
     const name = f.name.toLowerCase();
-    return name.endsWith('.pdf') || name.endsWith('.docx');
+    return name.endsWith('.pdf') || name.endsWith('.docx') || name.endsWith('.jpg') || name.endsWith('.jpeg') || name.endsWith('.png');
   };
 
   const handleFileChange = (e) => {
@@ -45,7 +45,7 @@ export default function AnalyzePanel({ onAnalysisComplete }) {
       setFile(selected);
       setError(null);
     } else if (selected) {
-      setError('Please upload a PDF or DOCX file.');
+      setError('Please upload a PDF, DOCX, or Image (JPG/PNG).');
     }
   };
 
@@ -135,7 +135,7 @@ export default function AnalyzePanel({ onAnalysisComplete }) {
           <input
             ref={fileInputRef}
             type="file"
-            accept=".pdf,.docx"
+            accept=".pdf,.docx,.jpg,.jpeg,.png"
             onChange={handleFileChange}
             className="hidden"
             id="resume-upload"
@@ -161,11 +161,11 @@ export default function AnalyzePanel({ onAnalysisComplete }) {
               <div className="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center mb-4">
                 <span className="material-symbols-outlined text-blue-600 text-3xl" style={{ fontVariationSettings: "'FILL' 1" }}>cloud_upload</span>
               </div>
-              <p className="font-bold text-slate-700 text-sm mb-1">
-                {dragActive ? 'Drop your file here' : 'Drag & drop your resume here'}
-              </p>
-              <p className="text-xs text-slate-400">or click to browse — PDF or DOCX</p>
-            </>
+                <p className="font-bold text-slate-700 text-sm mb-1">
+                  {dragActive ? 'Drop your file here' : 'Drag & drop your resume here'}
+                </p>
+                <p className="text-xs text-slate-400">or click to browse — PDF, DOCX, or Image</p>
+              </>
           )}
         </div>
 

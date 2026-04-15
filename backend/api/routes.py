@@ -30,7 +30,7 @@ from models.resume import Resume
 from models.analysis import Analysis
 from api.deps import get_current_user
 
-from services.parser import parse_pdf, parse_docx
+from services.parser import parse_pdf, parse_docx, parse_image
 from services.entity_extractor import extract_entities
 from services.keyword_analyzer import analyze_keywords
 from services.nlp_scorer import embed_entities, compute_similarity_matrix, compute_match_score
@@ -105,13 +105,16 @@ async def analyze_resume(
         elif filename_lower.endswith(".docx"):
             logger.info(f"[{request_id}] Format detected: DOCX → using python-docx")
             resume_text = parse_docx(content)
+        elif filename_lower.endswith((".jpg", ".jpeg", ".png")):
+            logger.info(f"[{request_id}] Format detected: Image ({filename_lower.split('.')[-1]}) → using OCR")
+            resume_text = parse_image(content)
         else:
             logger.warning(
                 f"[{request_id}] Unsupported file extension: '{resume.filename}'"
             )
             raise HTTPException(
                 status_code=400,
-                detail="Unsupported file type. Please upload a PDF or DOCX file.",
+                detail="Unsupported file type. Please upload a PDF, DOCX, or Image (JPG/PNG) file.",
             )
 
         if not resume_text or not resume_text.strip():
