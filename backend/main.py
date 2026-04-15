@@ -25,7 +25,10 @@ from api.auth import router as auth_router
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-    handlers=[logging.StreamHandler()],
+    handlers=[
+        logging.StreamHandler(),
+        logging.FileHandler("app.log")
+    ]
 )
 logger = logging.getLogger("vibeonjob.main")
 
