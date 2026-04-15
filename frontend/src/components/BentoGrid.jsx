@@ -27,7 +27,7 @@ export default function BentoGrid() {
       iconBg: "bg-purple-50",
       iconColor: "text-purple-600",
       accent: "border-purple-200/50",
-      image: "https://lh3.googleusercontent.com/aida-public/AB6AXuCO8hzoE632Tdx7ZbvKYSnCFZCQ4Knx9j1WjEfUfXRtlWXn7SLC6jaDXZPGUCtkdOHcHt83jylhhNHlZXQO8J5nsQKyusKVE5N2NpOKMsz2hb8XLmCT8Htuv0AGclGRsv_Qf7Q0K2hZ7XWkjwsPbQNqncfVYhGZmuXVMPqpXLWDu4453IhoifTa6WP2u_0Q5wwOj90gq2n2mZ8l6CVwNDaho_Zy-OqrWy_G4pfAdEt7EQgKIz6WBPfezhCHz4d895dTDaZhb8Hy0kM"
+      image: "/images/dash.png"
     }
   ];
 
@@ -35,7 +35,7 @@ export default function BentoGrid() {
     <section className="py-32 px-6 bg-slate-50/50 relative overflow-hidden">
       {/* Decorative lines */}
       <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-slate-200 to-transparent opacity-50"></div>
-      
+
       <div className="max-w-7xl mx-auto">
         <div className="mb-20 text-center">
           <div className="inline-block px-4 py-1.5 rounded-full bg-slate-100 text-slate-500 font-premium text-[10px] font-black uppercase tracking-[0.2em] mb-4">
@@ -53,7 +53,7 @@ export default function BentoGrid() {
             >
               {/* Subtle background glow on hover */}
               <div className="absolute -inset-1 primary-gradient opacity-0 lg:group-hover:opacity-[0.03] transition-opacity duration-500"></div>
-              
+
               <div className={card.image ? "flex flex-col lg:flex-row gap-10 items-center justify-between h-full" : "h-full"}>
                 <div className={card.image ? "flex-1" : ""}>
                   <div className={`w-14 h-14 ${card.iconBg} rounded-2xl flex items-center justify-center mb-8 shadow-sm group-hover:scale-110 transition-transform duration-500`}>
@@ -63,7 +63,7 @@ export default function BentoGrid() {
                   </div>
                   <h3 className="font-headline text-2xl font-bold text-slate-900 mb-4">{card.title}</h3>
                   <p className="text-slate-500 text-lg leading-relaxed mb-8">{card.desc}</p>
-                  
+
                   {card.tags && (
                     <div className="flex flex-wrap gap-3 mt-auto">
                       {card.tags.map(tag => (
@@ -78,8 +78,8 @@ export default function BentoGrid() {
                 {card.image && (
                   <div className="lg:w-1/2 relative">
                     <div className="absolute inset-0 primary-gradient blur-[80px] opacity-10 rounded-full"></div>
-                    <img 
-                      alt={card.title} 
+                    <img
+                      alt={card.title}
                       className="rounded-2xl shadow-2xl relative z-10 transform rotate-3 hover:rotate-0 transition-transform duration-700"
                       src={card.image}
                     />
