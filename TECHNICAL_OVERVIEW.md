@@ -42,8 +42,10 @@ as a Pydantic `BaseModel`. Understand: field types, `Optional`, default values, 
 
 ### 4. Natural Language Processing (NLP) with spaCy
 spaCy powers the entity extraction layer. Study: tokenisation, Named Entity Recognition
-(NER), dependency parsing, noun chunks, and how `en_core_web_sm` pipeline components
-work (`tok2vec`, `parser`, `ner`).
+(NER), dependency parsing, noun chunks, and how `en_core_web_md` pipeline components
+work (`tok2vec`, `parser`, `ner`). The `_md` model (96 MB) includes 300-dimensional word
+vectors, which provide significantly better NER accuracy on technical vocabulary compared
+to the smaller `_sm` model.
 
 **Resource:** *spaCy 101* → https://spacy.io/usage/spacy-101
 
@@ -94,21 +96,23 @@ integer fields rather than freeform prose.
 
 ---
 
-### 10. Vanilla JavaScript (Frontend)
-The entire UI is plain HTML/CSS/JS — no framework. Study: `fetch` API, `FormData`,
-`async/await`, DOM manipulation, `requestAnimationFrame` for animations, and the
-Clipboard API (`navigator.clipboard.writeText`).
+### 10. React + Vite (Frontend)
+The frontend is built with React 18 and Vite. Study: functional components, `useState`/
+`useEffect` hooks, `useContext` for auth state, React Router v6 for client-side routing,
+and the `fetch` API with `FormData` for file uploads. Styling uses Tailwind CSS utility
+classes with a custom design system.
 
-**Resource:** *MDN Web Docs — JavaScript* → https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide
+**Resource:** *React Docs* → https://react.dev/
 
 ---
 
-### 11. Chart.js
-Used to render the two semicircular gauge charts (Semantic Score + ATS Score). Understand:
-`doughnut` chart type, `circumference`, `rotation`, dataset `backgroundColor`, and the
-`animation` options.
+### 11. SVG Animated Gauges
+The score gauges (Semantic Match + ATS Score) are rendered as SVG `<circle>` elements.
+The animated fill effect uses `stroke-dasharray` and `stroke-dashoffset` with CSS
+transitions. Study: SVG coordinate system, `<circle>` attributes (`cx`, `cy`, `r`),
+stroke rendering, and CSS `transition` on SVG properties.
 
-**Resource:** *Chart.js Docs* → https://www.chartjs.org/docs/latest/
+**Resource:** *MDN — SVG Tutorial* → https://developer.mozilla.org/en-US/docs/Web/SVG/Tutorial
 
 ---
 
@@ -172,7 +176,9 @@ version uses *linguistic structure* instead.
 **How it works (two NLP passes on the same `spaCy` doc):**
 
 **Pass 1 — Named Entity Recognition (NER):**
-spaCy's `en_core_web_sm` model was trained to label spans of text with category tags.
+spaCy's `en_core_web_md` model was trained to label spans of text with category tags.
+The `_md` model includes 300-dimensional word vectors, enabling significantly better
+entity recognition on technical terminology compared to the `_sm` variant.
 We extract spans labelled `ORG` (organisations/companies, which captures tools like
 "Docker", "AWS"), `PRODUCT`, and `WORK_OF_ART`. Each matched span is lowercased and
 filtered (length 2–40 chars, not a pure integer).
@@ -330,32 +336,42 @@ Every attempt, response, and parse failure is logged.
 
 ---
 
-### Frontend — Rendering (`static/script.js`, `static/style.css`, `static/index.html`)
+### Layer 6 — Frontend Rendering (React + Vite)
 
-The frontend is pure HTML/CSS/JS with no framework. When the user submits the form:
+The frontend is built with React 18, Vite, and Tailwind CSS. The Dashboard page
+orchestrates the pipeline interaction through three key components:
 
-1. A `FormData` object is built with the file and job description text.
-2. A `fetch('/api/analyze', { method: 'POST', body: formData })` call is made.
-3. While waiting, a step-by-step processing overlay animates through 6 dots,
-   one per pipeline layer, using `setTimeout` delays matching approximate layer durations.
-4. On response, `displayResults(data)` is called which populates five tabs:
+**`AnalyzePanel.jsx` — Upload & Submit:**
+1. A drag-and-drop file zone accepts PDF/DOCX resumes with validation.
+2. A textarea captures the full job description text.
+3. On submit, a `FormData` object is built and sent via `fetch('POST /api/analyze')`
+   with the JWT `Authorization` header.
+4. A progress indicator shows the 6-layer pipeline steps during the 15-30 second analysis.
 
-   - **Overview** — Priority gap table with `#rank`, `JD Freq`, `Resume Freq`, `Gap`,
-     and a coverage bar. Four stat cards (matched, missing, keyword gaps, skills to learn).
-   - **Skill Analysis** — Matched skills table with similarity percentage bars.
-     Missing skills as red chips.
-   - **Keywords** — ATS keyword injection table. Each row shows the exact verbatim
-     phrase from the JD and a "Copy phrase" button using `navigator.clipboard.writeText`.
-     Coverage bars are coloured red/yellow/green based on coverage %.
-   - **Learning Path** — Cards with a left-edge colour bar (High=red, Medium=yellow,
-     Low=green), difficulty badge, week estimate, and a named resource link.
-   - **Resume Tips** — Improvement cards showing the affected resume section and
-     side-by-side before (red) / after (green) example text blocks.
+**`AnalysisResults.jsx` — Results Visualization:**
+1. **Dual SVG gauges** — Semantic Match Score and ATS Score, animated via
+   `stroke-dashoffset` CSS transitions on SVG `<circle>` elements.
+2. **Quick stat cards** — counts for matched, missing, gaps, and learning path items.
+3. **Six tabbed sections:**
+   - **Overview** — Matched skills (green chips with hover tooltips showing similarity %)
+     and missing skills (red chips).
+   - **Gaps** — Priority-ranked cards with JD frequency, resume frequency, recommended
+     additions, relevancy explanation, and day-to-day context.
+   - **Improvements** — Resume section badges with specific suggestions and side-by-side
+     before (red) / after (green) rewrite examples.
+   - **Learning Path** — Skill cards with difficulty badges (Beginner/Intermediate/Advanced),
+     priority levels, estimated weeks, and named resource recommendations.
+   - **ATS Keywords** — Frequency table with colour-coded gap counts and visual
+     coverage progress bars (red <25%, amber 25–75%, green >75%).
+   - **Resources** — Clickable resource cards grouped by type (Video/Course/Documentation/
+     Tutorial) with external links.
 
-5. Both gauges are rendered using Chart.js doughnut charts configured with
-   `circumference: 180` and `rotation: 270` to produce a semicircle. The score value
-   counter animates from 0 to the target using `requestAnimationFrame` with a cubic
-   ease-out function.
+**`AnalysisHistory.jsx` — Past Analyses:**
+Fetches `GET /api/analyses` and displays a scrollable list of past analysis summaries
+with colour-coded score badges. Clicking an entry loads the full detail via
+`GET /api/analyses/{id}` into the results panel.
+
+**State flow:** Upload form → API call → results panel → "New Analysis" resets to upload.
 
 ---
 
@@ -392,8 +408,9 @@ resume_entities ► embed_entities() ──► resume_vectors (m × 384)
         gaps      [ { skill, relevancy, context, priority_rank, jd_frequency, resume_frequency, recommended_additions } ],
         improvements [ { section, suggestion, before_example, after_example } ],
         learning_path [ { skill, reason, resources, estimated_time_weeks, difficulty, priority } ],
-        keyword_suggestions [ { keyword, jd_frequency, resume_frequency, gap, exact_phrase, coverage_pct } ]
+        keyword_suggestions [ { keyword, jd_frequency, resume_frequency, gap, exact_phrase, coverage_pct } ],
+        recommended_resources [ { skill, resource_type, title, url, description } ]
     }
 
-JSON ──► fetch() ──► script.js ──► 5-tab UI with gauges, tables, cards
+JSON ──► React Dashboard ──► 6-tab UI with SVG gauges, tables, cards
 ```
