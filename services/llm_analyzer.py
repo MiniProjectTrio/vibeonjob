@@ -19,6 +19,7 @@ import json
 import time
 import logging
 from google import genai
+from models.schemas import AnalysisResponse
 
 logger = logging.getLogger("vibeonjob.services.llm_analyzer")
 

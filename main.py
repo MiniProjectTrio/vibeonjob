@@ -1,16 +1,22 @@
 import logging
 import time
+import os
+from dotenv import load_dotenv
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from api.routes import router as api_router
+
+# Load environment variables
+load_dotenv()
 
 # Configure root logger with different levels and formatting
 logging.basicConfig(
     level=logging.INFO, # Default level
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     handlers=[
-        logging.StreamHandler()
+        logging.StreamHandler(),
+        logging.FileHandler("app.log")
     ]
 )
 logger = logging.getLogger("vibeonjob.main")
