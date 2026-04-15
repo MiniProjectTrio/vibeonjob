@@ -9,6 +9,7 @@ import FeaturesPage from './pages/FeaturesPage'
 import PrivacyPage from './pages/PrivacyPage'
 import TermsPage from './pages/TermsPage'
 import FreeToolsPage from './pages/FreeToolsPage'
+import ScrollToTop from './components/ScrollToTop'
 
 function App() {
   const { user, loading } = useAuth()
@@ -17,6 +18,7 @@ function App() {
 
   return (
     <BrowserRouter>
+      <ScrollToTop />
       <Routes>
         <Route path="/" element={user ? <Navigate to="/dashboard" /> : <LandingPage />} />
         <Route path="/login" element={user ? <Navigate to="/dashboard" /> : <LoginPage />} />
