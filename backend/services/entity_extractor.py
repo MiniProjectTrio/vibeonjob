@@ -21,15 +21,15 @@ import spacy
 logger = logging.getLogger("vibeonjob.services.entity_extractor")
 
 # ── Model Initialisation ────────────────────────────────────────────────────
-logger.info("Loading spaCy en_core_web_sm model for NER + dependency parsing...")
+logger.info("Loading spaCy en_core_web_md model for NER + dependency parsing...")
 try:
-    nlp = spacy.load("en_core_web_sm")
+    nlp = spacy.load("en_core_web_md")
     logger.info("spaCy model loaded successfully (pipeline: %s)", nlp.pipe_names)
 except OSError:
-    logger.warning("en_core_web_sm not found locally — downloading via spacy.cli")
+    logger.warning("en_core_web_md not found locally — downloading via spacy.cli")
     import spacy.cli
-    spacy.cli.download("en_core_web_sm")
-    nlp = spacy.load("en_core_web_sm")
+    spacy.cli.download("en_core_web_md")
+    nlp = spacy.load("en_core_web_md")
     logger.info("spaCy model downloaded and loaded successfully")
 
 

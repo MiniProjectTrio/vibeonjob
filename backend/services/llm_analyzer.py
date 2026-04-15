@@ -127,6 +127,15 @@ Respond ONLY with a valid JSON object (no markdown, no code blocks, no commentar
       "difficulty": "<exactly one of: Beginner | Intermediate | Advanced>",
       "priority": "<exactly one of: High | Medium | Low>"
     }}
+  ],
+  "recommended_resources": [
+    {{
+      "skill": "<exact missing skill name>",
+      "resource_type": "<exactly one of: Video | Documentation | Course | Tutorial>",
+      "title": "<human-readable title, e.g. 'Next.js Full Course for Beginners'>",
+      "url": "<real URL: YouTube search URL like https://www.youtube.com/results?search_query=nextjs+tutorial+2024, or official docs like https://nextjs.org/docs>",
+      "description": "<1 sentence: why this specific resource helps bridge this exact gap>"
+    }}
   ]
 }}
 
@@ -134,10 +143,12 @@ Hard rules — violations will cause runtime errors:
 1. "gaps" MUST cover every skill in missing_skills (one entry per skill, ranked by jd_frequency descending).
 2. "improvements" MUST have 3-5 entries with concrete before/after resume line examples.
 3. "learning_path" MUST have one entry per missing skill with a REAL, named resource.
-4. All integer fields (priority_rank, jd_frequency, resume_frequency, recommended_additions, estimated_time_weeks) MUST be integers, never strings or null.
-5. difficulty MUST be exactly "Beginner", "Intermediate", or "Advanced".
-6. priority MUST be exactly "High", "Medium", or "Low".
-7. Return ONLY the JSON object — no prose, no markdown fences.
+4. "recommended_resources" MUST have 2-3 entries per missing skill. Use REAL URLs: YouTube search URLs (https://www.youtube.com/results?search_query=<encoded+query>), official documentation URLs, or well-known course platform URLs. Never invent fake URLs.
+5. All integer fields (priority_rank, jd_frequency, resume_frequency, recommended_additions, estimated_time_weeks) MUST be integers, never strings or null.
+6. difficulty MUST be exactly "Beginner", "Intermediate", or "Advanced".
+7. priority MUST be exactly "High", "Medium", or "Low".
+8. resource_type MUST be exactly "Video", "Documentation", "Course", or "Tutorial".
+9. Return ONLY the JSON object — no prose, no markdown fences.
 """
     return prompt
 
@@ -261,13 +272,15 @@ def format_gap_analysis(
                 "improvements": data.get("improvements", []),
                 "learning_path": data.get("learning_path", []),
                 "keyword_suggestions": [ks.model_dump() for ks in keyword_suggestions],
+                "recommended_resources": data.get("recommended_resources", []),
             }
 
             logger.info(
                 f"Response assembled: gaps={len(response_data['gaps'])}, "
                 f"improvements={len(response_data['improvements'])}, "
                 f"learning_path={len(response_data['learning_path'])}, "
-                f"keyword_suggestions={len(response_data['keyword_suggestions'])}"
+                f"keyword_suggestions={len(response_data['keyword_suggestions'])}, "
+                f"recommended_resources={len(response_data['recommended_resources'])}"
             )
             logger.info("=== Layer 5 Complete ===")
             return AnalysisResponse(**response_data)

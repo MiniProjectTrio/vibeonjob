@@ -34,6 +34,14 @@ class SkillToLearn(BaseModel):
     priority: str = "Medium"             # High / Medium / Low
 
 
+class RecommendedResource(BaseModel):
+    skill: str                               # The missing skill this resource addresses
+    resource_type: str = "Course"            # Video / Documentation / Course / Tutorial
+    title: str = ""                          # Human-readable title of the resource
+    url: str = ""                            # Direct URL (YouTube search, docs, etc.)
+    description: str = ""                    # Brief description of why this resource helps
+
+
 class KeywordSuggestion(BaseModel):
     keyword: str
     jd_frequency: int           # Raw occurrences in JD text
@@ -52,3 +60,4 @@ class AnalysisResponse(BaseModel):
     improvements: List[Improvement]
     learning_path: List[SkillToLearn]
     keyword_suggestions: List[KeywordSuggestion] = []  # Priority-ranked ATS keywords
+    recommended_resources: List[RecommendedResource] = []  # Actionable learning resources
