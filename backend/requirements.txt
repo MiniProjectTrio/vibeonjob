@@ -4,6 +4,7 @@ python-multipart
 PyMuPDF
 python-docx
 spacy
+# spaCy model (install separately): python -m spacy download en_core_web_md
 scipy
 sentence-transformers
 pydantic[email]
