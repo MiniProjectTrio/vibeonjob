@@ -347,8 +347,6 @@ export default function AnalysisResults({ result, onNewAnalysis }) {
                 <a
                   key={i}
                   href={res.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
                   className="bg-slate-50/50 rounded-2xl p-5 hover:bg-white border border-transparent hover:border-blue-100 transition-all group block"
                 >
                   <div className="flex items-start justify-between mb-2">
