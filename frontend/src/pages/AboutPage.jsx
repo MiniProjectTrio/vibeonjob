@@ -121,7 +121,6 @@ export default function AboutPage() {
               </p>
               <a
                 href="https://github.com/MiniProjectTrio/vibeonjob"
-                target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-3 bg-white text-slate-900 px-8 py-4 rounded-full font-bold text-sm hover:bg-slate-100 transition-colors shadow-xl"
               >
