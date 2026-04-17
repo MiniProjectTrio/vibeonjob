@@ -79,11 +79,25 @@ def _build_prompt(
         "keyword_gap_report": kw_data,
     }
 
+    # ── Prompt payload size breakdown ────────────────────────────────────────
+    payload_json = json.dumps(payload, indent=2)
+    payload_chars = len(payload_json)
     logger.debug(f"Prompt payload keys: {list(payload.keys())}")
     logger.debug(
         f"Payload sizes: jd_entities={len(jd_entities)}, resume_entities={len(resume_entities)}, "
         f"matched={len(matched_skills)}, missing={len(missing_skills)}, "
         f"keyword_gaps={len(kw_data)}"
+    )
+    logger.info(
+        f"Prompt payload breakdown (chars): "
+        f"jd_requirements={len(json.dumps(jd_entities))}, "
+        f"candidate_skills={len(json.dumps(resume_entities))}, "
+        f"matched_skills={len(json.dumps(matched_skills))}, "
+        f"missing_skills={len(json.dumps(missing_skills))}, "
+        f"jd_freqs={len(json.dumps(jd_freq_map))}, "
+        f"resume_freqs={len(json.dumps(resume_freq_map))}, "
+        f"keyword_gap_report={len(json.dumps(kw_data))}, "
+        f"TOTAL_DATA={payload_chars} chars (~{payload_chars // 4} tokens)"
     )
 
     prompt = f"""You are an expert career coach and ATS (Applicant Tracking System) specialist.
@@ -150,7 +164,7 @@ Hard rules — violations will cause runtime errors:
 8. resource_type MUST be exactly "Video", "Documentation", "Course", or "Tutorial".
 9. Return ONLY the JSON object — no prose, no markdown fences.
 """
-    return prompt
+    return prompt, payload_json
 
 
 def format_gap_analysis(
@@ -199,7 +213,7 @@ def format_gap_analysis(
     logger.info(f"Using model: {model_name}")
 
     # ── Build prompt ─────────────────────────────────────────────────────────
-    prompt = _build_prompt(
+    prompt, payload_json = _build_prompt(
         match_score=match_score,
         ats_score=ats_score,
         jd_entities=jd_entities,
@@ -212,8 +226,13 @@ def format_gap_analysis(
     )
     prompt_char_count = len(prompt)
     approx_tokens = prompt_char_count // 4
+    # The prompt has two components: data payload + schema/instruction template
+    # Schema template is ~2000 tokens of static text (output JSON schema + hard rules)
+    schema_overhead_chars = prompt_char_count - len(payload_json)
     logger.info(
-        f"Prompt built: ~{prompt_char_count} chars (~{approx_tokens} tokens estimated)"
+        f"Prompt built: ~{prompt_char_count} chars (~{approx_tokens} tokens estimated) | "
+        f"data payload: ~{len(payload_json)} chars (~{len(payload_json) // 4} tokens), "
+        f"schema+instructions: ~{schema_overhead_chars} chars (~{schema_overhead_chars // 4} tokens)"
     )
 
     # ── Dispatch with retry ──────────────────────────────────────────────────
