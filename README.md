@@ -15,7 +15,7 @@ flowchart TB
 
     subgraph PIPELINE["⚙️ 6-Layer Analysis Pipeline"]
         direction TB
-        L1["<b>Layer 1 — Ingestion</b><br/>PyMuPDF / python-docx<br/>Extract raw text from documents"]
+        L1["<b>Layer 1 — Ingestion</b><br/>PyMuPDF / python-docx / OCR / OpenCV <br/>Extract raw text from documents"]
         L2["<b>Layer 2 — Extraction</b><br/>spaCy (en_core_web_md)<br/>NER + noun-chunk entity extraction"]
         L25["<b>Layer 2.5 — ATS Analysis</b><br/>Regex frequency counter<br/>Keyword density & gap severity"]
         L3["<b>Layer 3 — Vectorization</b><br/>sentence-transformers (MiniLM)<br/>384-dim dense vector embeddings"]
