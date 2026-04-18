@@ -10,21 +10,17 @@ Key design principles:
     with our computed values AFTER the LLM response — we never trust LLM for numbers.
   - The prompt forces integer outputs for: priority_rank, jd_frequency,
     resume_frequency, recommended_additions, estimated_time_weeks.
-  - Retry logic with exponential backoff handles transient API failures.
+  - LLM calls are delegated to LLMEngine (Strategy + Chain of Responsibility)
+    which handles retries, fallback between providers (Gemini → Groq), and logging.
   - Every prompt, response snippet, and parse error is logged.
 """
 
-import os
 import json
-import time
 import logging
-from google import genai
 from models.schemas import AnalysisResponse
+from services.llm_providers import create_default_engine
 
 logger = logging.getLogger("vibeonjob.services.llm_analyzer")
-
-_MAX_RETRIES = 3
-_RETRY_BASE_DELAY = 1.5  # seconds, doubled each retry
 
 
 def _strip_code_fences(text: str) -> str:
@@ -51,7 +47,7 @@ def _build_prompt(
     keyword_suggestions: list,
 ) -> str:
     """
-    Build the structured prompt for Gemini.
+    Build the structured prompt for the LLM.
     The LLM receives pre-computed numbers and must produce concrete, quantified output.
     """
     # Serialise keyword suggestions for the LLM
@@ -181,9 +177,10 @@ def format_gap_analysis(
     """
     Layer 5: LLM Presentation Layer.
 
-    Sends pre-computed structured data to Gemini and maps the response onto
-    our Pydantic AnalysisResponse schema. All numeric fields from our pipeline
-    override LLM-provided values after parsing.
+    Sends pre-computed structured data to the LLM engine (with automatic
+    provider fallback) and maps the response onto our Pydantic AnalysisResponse
+    schema. All numeric fields from our pipeline override LLM-provided values
+    after parsing.
 
     Args:
         match_score: semantic match score (0-100) from Hungarian algorithm
@@ -201,16 +198,9 @@ def format_gap_analysis(
     """
     logger.info("=== Layer 5: LLM Presentation Layer ===")
 
-    # ── Configure Gemini ─────────────────────────────────────────────────────
-    api_key = os.getenv("GOOGLE_API_KEY", "")
-    if not api_key:
-        logger.error("GOOGLE_API_KEY environment variable is not set!")
-        raise ValueError("GOOGLE_API_KEY is required but not set.")
-
-    logger.debug("Configuring Gemini API client (google-genai SDK)...")
-    client = genai.Client(api_key=api_key)
-    model_name = "gemini-2.5-flash"  # or "gemini-2.5-flash-preview-04-17" for latest preview
-    logger.info(f"Using model: {model_name}")
+    # ── Build the LLM engine (Strategy + Chain of Responsibility) ────────────
+    engine = create_default_engine()
+    logger.info(f"LLM Engine: {engine}")
 
     # ── Build prompt ─────────────────────────────────────────────────────────
     prompt, payload_json = _build_prompt(
@@ -235,96 +225,88 @@ def format_gap_analysis(
         f"schema+instructions: ~{schema_overhead_chars} chars (~{schema_overhead_chars // 4} tokens)"
     )
 
-    # ── Dispatch with retry ──────────────────────────────────────────────────
-    last_error = None
-    for attempt in range(1, _MAX_RETRIES + 1):
-        logger.info(f"Gemini API call attempt {attempt}/{_MAX_RETRIES}...")
-        t_start = time.time()
+    # ── Dispatch via LLM Engine (handles retries + fallback) ─────────────────
+    # Wrap generate + JSON parse in a retry loop — if the LLM returns truncated
+    # or malformed JSON, we re-generate rather than crashing the pipeline.
+    _JSON_PARSE_RETRIES = 3
+    data = None
+    last_parse_error = None
+
+    for parse_attempt in range(1, _JSON_PARSE_RETRIES + 1):
+        logger.info(f"LLM generate + parse attempt {parse_attempt}/{_JSON_PARSE_RETRIES}...")
+        raw_text = engine.generate(prompt)
+
+        logger.debug(f"Raw response length: {len(raw_text)} chars")
+        logger.debug(f"Response preview (first 200 chars): {raw_text[:200]}")
+
+        # ── Parse JSON ───────────────────────────────────────────────────────
+        cleaned = _strip_code_fences(raw_text)
+        logger.debug("Parsing JSON response...")
         try:
-            response = client.models.generate_content(
-                model=model_name,
-                contents=prompt,
-            )
-            elapsed = time.time() - t_start
-            logger.info(f"Gemini responded in {elapsed:.2f}s on attempt {attempt}")
-
-            raw_text = response.text
-            logger.debug(f"Raw response length: {len(raw_text)} chars")
-            logger.debug(f"Response preview (first 200 chars): {raw_text[:200]}")
-
-            # ── Parse JSON ───────────────────────────────────────────────────
-            cleaned = _strip_code_fences(raw_text)
-            logger.debug("Parsing JSON response...")
             data = json.loads(cleaned)
-            logger.info("JSON parsing successful")
-
-            # ── Override all numeric/list fields with our computed values ────
-            # LLM text fields are kept; quantitative fields are ALWAYS overridden.
-            logger.info(
-                "Overriding LLM numeric outputs with pipeline-computed values "
-                "(match_score, ats_score, matched_skills, missing_skills, jd/resume frequencies)"
-            )
-
-            # Override gap frequencies with our computed values
-            if "gaps" in data:
-                for gap in data["gaps"]:
-                    skill = gap.get("skill", "")
-                    gap["jd_frequency"] = jd_freq_map.get(skill, gap.get("jd_frequency", 1))
-                    gap["resume_frequency"] = resume_freq_map.get(skill, gap.get("resume_frequency", 0))
-                    logger.debug(
-                        f"  Gap override: '{skill}' jd_freq={gap['jd_frequency']}, "
-                        f"resume_freq={gap['resume_frequency']}"
-                    )
-
-            # Sort gaps by priority_rank ascending
-            if "gaps" in data:
-                data["gaps"].sort(key=lambda g: g.get("priority_rank", 999))
-                logger.debug(f"Gaps sorted by priority_rank. Count: {len(data['gaps'])}")
-
-            # Build final response
-            response_data = {
-                "match_score": match_score,          # Always use our computed score
-                "ats_score": ats_score,              # Always use our computed score
-                "matched_skills": matched_skills,    # Always use our computed matches
-                "missing_skills": missing_skills,    # Always use our computed misses
-                "gaps": data.get("gaps", []),
-                "improvements": data.get("improvements", []),
-                "learning_path": data.get("learning_path", []),
-                "keyword_suggestions": [ks.model_dump() for ks in keyword_suggestions],
-                "recommended_resources": data.get("recommended_resources", []),
-            }
-
-            logger.info(
-                f"Response assembled: gaps={len(response_data['gaps'])}, "
-                f"improvements={len(response_data['improvements'])}, "
-                f"learning_path={len(response_data['learning_path'])}, "
-                f"keyword_suggestions={len(response_data['keyword_suggestions'])}, "
-                f"recommended_resources={len(response_data['recommended_resources'])}"
-            )
-            logger.info("=== Layer 5 Complete ===")
-            return AnalysisResponse(**response_data)
-
+            logger.info(f"JSON parsing successful on attempt {parse_attempt}")
+            break
         except json.JSONDecodeError as e:
-            elapsed = time.time() - t_start
-            logger.error(
-                f"Attempt {attempt}: JSON decode failed after {elapsed:.2f}s: {e}. "
-                f"Bad response preview: {raw_text[:300] if 'raw_text' in dir() else 'N/A'}"
+            last_parse_error = e
+            logger.warning(
+                f"JSON parse attempt {parse_attempt}/{_JSON_PARSE_RETRIES} failed: {e}. "
+                f"Response tail (last 200 chars): ...{raw_text[-200:]}"
             )
-            last_error = e
-        except Exception as e:
-            elapsed = time.time() - t_start
-            logger.error(
-                f"Attempt {attempt}: Unexpected error after {elapsed:.2f}s: {type(e).__name__}: {e}",
-                exc_info=True,
-            )
-            last_error = e
+            if parse_attempt < _JSON_PARSE_RETRIES:
+                logger.info("Re-generating LLM response...")
 
-        if attempt < _MAX_RETRIES:
-            delay = _RETRY_BASE_DELAY * (2 ** (attempt - 1))
-            logger.warning(f"Retrying in {delay:.1f}s...")
-            time.sleep(delay)
+    if data is None:
+        logger.critical(
+            f"All {_JSON_PARSE_RETRIES} JSON parse attempts failed. "
+            f"Last error: {last_parse_error}"
+        )
+        raise ValueError(
+            f"LLM returned unparseable JSON after {_JSON_PARSE_RETRIES} attempts: "
+            f"{last_parse_error}"
+        )
 
-    logger.critical(
-        f"All {_MAX_RETRIES} Gemini API attempts failed. Last error: {last_error}"
+    # ── Override all numeric/list fields with our computed values ─────────────
+    # LLM text fields are kept; quantitative fields are ALWAYS overridden.
+    logger.info(
+        "Overriding LLM numeric outputs with pipeline-computed values "
+        "(match_score, ats_score, matched_skills, missing_skills, jd/resume frequencies)"
     )
-    raise ValueError(f"LLM layer failed after {_MAX_RETRIES} attempts: {last_error}")
+
+    # Override gap frequencies with our computed values
+    if "gaps" in data:
+        for gap in data["gaps"]:
+            skill = gap.get("skill", "")
+            gap["jd_frequency"] = jd_freq_map.get(skill, gap.get("jd_frequency", 1))
+            gap["resume_frequency"] = resume_freq_map.get(skill, gap.get("resume_frequency", 0))
+            logger.debug(
+                f"  Gap override: '{skill}' jd_freq={gap['jd_frequency']}, "
+                f"resume_freq={gap['resume_frequency']}"
+            )
+
+    # Sort gaps by priority_rank ascending
+    if "gaps" in data:
+        data["gaps"].sort(key=lambda g: g.get("priority_rank", 999))
+        logger.debug(f"Gaps sorted by priority_rank. Count: {len(data['gaps'])}")
+
+    # Build final response
+    response_data = {
+        "match_score": match_score,          # Always use our computed score
+        "ats_score": ats_score,              # Always use our computed score
+        "matched_skills": matched_skills,    # Always use our computed matches
+        "missing_skills": missing_skills,    # Always use our computed misses
+        "gaps": data.get("gaps", []),
+        "improvements": data.get("improvements", []),
+        "learning_path": data.get("learning_path", []),
+        "keyword_suggestions": [ks.model_dump() for ks in keyword_suggestions],
+        "recommended_resources": data.get("recommended_resources", []),
+    }
+
+    logger.info(
+        f"Response assembled: gaps={len(response_data['gaps'])}, "
+        f"improvements={len(response_data['improvements'])}, "
+        f"learning_path={len(response_data['learning_path'])}, "
+        f"keyword_suggestions={len(response_data['keyword_suggestions'])}, "
+        f"recommended_resources={len(response_data['recommended_resources'])}"
+    )
+    logger.info("=== Layer 5 Complete ===")
+    return AnalysisResponse(**response_data)

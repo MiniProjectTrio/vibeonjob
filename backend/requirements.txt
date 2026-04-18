@@ -10,6 +10,7 @@ sentence-transformers
 pydantic[email]
 python-dotenv
 google-genai
+groq
 pytesseract
 Pillow
 sqlmodel

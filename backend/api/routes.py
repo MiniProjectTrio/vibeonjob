@@ -407,15 +407,10 @@ async def generate_resume(
     body: GenerateResumeRequest,
     current_user: User = Depends(get_current_user),
 ):
-    """Generate an ATS-optimized resume using Gemini based on analysis results."""
+    """Generate an ATS-optimized resume using the LLM engine (with fallback)."""
     logger.info(f"Generating ATS resume for user={current_user.id}")
 
-    api_key = os.getenv("GOOGLE_API_KEY", "")
-    if not api_key:
-        raise HTTPException(status_code=500, detail="AI service not configured")
-
-    from google import genai
-    client = genai.Client(api_key=api_key)
+    from services.llm_providers import create_default_engine
 
     # Build improvement instructions
     improvement_text = ""
@@ -470,11 +465,9 @@ INSTRUCTIONS:
 Output ONLY the resume text — no commentary, no explanations, no markdown."""
 
     try:
-        response = client.models.generate_content(
-            model="gemini-2.5-flash",
-            contents=prompt,
-        )
-        resume_text = response.text.strip()
+        engine = create_default_engine()
+        raw_text = engine.generate(prompt)
+        resume_text = raw_text.strip()
         logger.info(f"ATS resume generated: {len(resume_text)} chars")
         return {"resume_text": resume_text}
     except Exception as e:
