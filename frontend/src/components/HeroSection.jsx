@@ -16,16 +16,16 @@ export default function HeroSection() {
               <span className="material-symbols-outlined text-[18px]" style={{ fontVariationSettings: "'FILL' 1" }}>auto_awesome</span>
               THE FUTURE OF JOB SEEKING
             </div>
-            
+
             <h1 className="font-headline text-5xl md:text-7xl font-extrabold tracking-tight text-slate-900 mb-8 leading-[1.1]">
-              Discover Your <br/>
+              Discover Your <br />
               <span className="text-gradient">Ideal Career Vibe.</span>
             </h1>
-            
+
             <p className="font-body text-xl text-slate-600 max-w-xl mb-10 leading-relaxed">
               Stop scrolling, start vibing. We use neural-matching to find the companies that align with your energy, culture, and career goals.
             </p>
-            
+
             <div className="flex flex-col sm:flex-row items-center gap-5">
               <Link to="/signup">
                 <button className="primary-gradient text-white text-lg px-10 py-5 rounded-2xl font-bold shadow-2xl shadow-blue-500/30 hover:shadow-blue-500/40 transition-all transform hover:-translate-y-1 active:scale-95 flex items-center gap-3">
@@ -58,9 +58,9 @@ export default function HeroSection() {
           <div className="relative group">
             <div className="absolute -inset-1 bg-gradient-to-r from-blue-600 to-purple-600 rounded-[2.5rem] blur opacity-25 group-hover:opacity-40 transition duration-1000 group-hover:duration-200"></div>
             <div className="relative bg-white rounded-[2.5rem] overflow-hidden shadow-2xl">
-              <img 
-                src="/images/hero.png" 
-                alt="AI Career Mapping" 
+              <img
+                src="/images/heroA.png"
+                alt="AI Career Mapping"
                 className="w-full h-auto object-cover transform transition duration-500 group-hover:scale-105"
               />
               {/* Floating Stat Card */}
