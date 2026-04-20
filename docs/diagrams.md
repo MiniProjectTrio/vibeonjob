@@ -831,4 +831,30 @@ flowchart LR
 
 ---
 
+## 16. Data Parsing Flow Diagram
+
+```mermaid
+flowchart TD
+    START([File Upload]) --> EXT{File Extension?}
+
+    EXT -->|.pdf| PDF[PyMuPDF Text Extraction]
+    EXT -->|.docx| DOCX[python-docx Paragraph Extraction]
+    EXT -->|.jpg / .png| IMG[OCR Engine]
+    EXT -->|Other| ERR[❌ 400 Unsupported Type]
+
+    PDF --> TEXT[resume_text]
+    DOCX --> TEXT
+    IMG --> TEXT
+
+    TEXT --> CHECK{Text Empty?}
+    CHECK -->|Yes| FAIL[❌ 400 No Text Extracted]
+    CHECK -->|No| OUT([✅ Proceed to Layer 2])
+
+    style ERR fill:#8B0000,color:#fff
+    style FAIL fill:#8B0000,color:#fff
+    style OUT fill:#006400,color:#fff
+```
+
+---
+
 *Generated for VibeOnJob — Hybrid NLP+LLM Resume Gap Analyzer*
